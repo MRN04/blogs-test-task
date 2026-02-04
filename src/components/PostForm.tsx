@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import { useBlogStore } from "@/store/useBlogStore";
-import { collection, addDoc, Timestamp } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { api } from "@/lib/api";
 import { postFormSchema, PostFormErrors } from "@/lib/validations";
 import {
   Dialog,
@@ -32,7 +31,6 @@ export default function PostForm() {
   const { isFormOpen, closeForm } = useBlogStore();
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
-  const [author, setAuthor] = useState("");
   const [tagsInput, setTagsInput] = useState("");
   const [errors, setErrors] = useState<PostFormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -40,7 +38,6 @@ export default function PostForm() {
 
   const validateForm = (): boolean => {
     const result = postFormSchema.safeParse({
-      author: author.trim(),
       title: title.trim(),
       content: content.trim(),
       tagsInput: tagsInput.trim(),
@@ -75,19 +72,18 @@ export default function PostForm() {
       .filter((tag) => tag.length > 0);
 
     try {
-      await addDoc(collection(db, "posts"), {
+      await api.createPost({
         title: title.trim(),
         content: content.trim(),
-        author: author.trim(),
-        tags,
-        createdAt: Timestamp.now(),
-        likes: 0,
+        tags: tags.length > 0 ? tags : undefined,
       });
 
       resetForm();
       closeForm();
-    } catch (error) {
+      window.location.reload();
+    } catch (error: any) {
       console.error("Error adding post:", error);
+      alert(error.message || "Помилка при створенні поста");
     } finally {
       setIsSubmitting(false);
     }
@@ -96,7 +92,6 @@ export default function PostForm() {
   const resetForm = () => {
     setTitle("");
     setContent("");
-    setAuthor("");
     setTagsInput("");
     setErrors({});
   };
@@ -109,11 +104,6 @@ export default function PostForm() {
   };
 
   // Clear error when field changes
-  const handleAuthorChange = (value: string) => {
-    setAuthor(value);
-    if (errors.author) setErrors((prev) => ({ ...prev, author: undefined }));
-  };
-
   const handleTitleChange = (value: string) => {
     setTitle(value);
     if (errors.title) setErrors((prev) => ({ ...prev, title: undefined }));
@@ -124,7 +114,7 @@ export default function PostForm() {
     if (errors.content) setErrors((prev) => ({ ...prev, content: undefined }));
   };
 
-  const isValid = author.trim() !== "" && title.trim() !== "" && content.trim() !== "";
+  const isValid = title.trim() !== "" && content.trim() !== "";
 
   // Mobile: Drawer
   if (isMobile) {
@@ -145,12 +135,10 @@ export default function PostForm() {
 
           <div className="px-4 pb-2 overflow-y-auto flex-1">
             <PostFormFields
-              author={author}
               title={title}
               content={content}
               tagsInput={tagsInput}
               errors={errors}
-              onAuthorChange={handleAuthorChange}
               onTitleChange={handleTitleChange}
               onContentChange={handleContentChange}
               onTagsChange={setTagsInput}
@@ -206,12 +194,10 @@ export default function PostForm() {
           </DialogHeader>
 
           <PostFormFields
-            author={author}
             title={title}
             content={content}
             tagsInput={tagsInput}
             errors={errors}
-            onAuthorChange={handleAuthorChange}
             onTitleChange={handleTitleChange}
             onContentChange={handleContentChange}
             onTagsChange={setTagsInput}

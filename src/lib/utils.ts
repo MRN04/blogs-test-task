@@ -1,13 +1,12 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { Timestamp } from "firebase/firestore";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
 export function formatDate(
-  date: Timestamp,
+  date: string | Date,
   options?: Intl.DateTimeFormatOptions
 ): string {
   const defaultOptions: Intl.DateTimeFormatOptions = {
@@ -15,12 +14,13 @@ export function formatDate(
     month: "long",
     year: "numeric",
   };
+  const dateObj = typeof date === "string" ? new Date(date) : date;
   return new Intl.DateTimeFormat("uk-UA", options || defaultOptions).format(
-    date.toDate()
+    dateObj
   );
 }
 
-export function formatDateTime(date: Timestamp): string {
+export function formatDateTime(date: string | Date): string {
   return formatDate(date, {
     day: "numeric",
     month: "long",
@@ -30,7 +30,7 @@ export function formatDateTime(date: Timestamp): string {
   });
 }
 
-export function formatShortDate(date: Timestamp): string {
+export function formatShortDate(date: string | Date): string {
   return formatDate(date, {
     day: "numeric",
     month: "short",

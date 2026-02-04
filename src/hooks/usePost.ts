@@ -1,10 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { doc, onSnapshot } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { api } from "@/lib/api";
 import { Post } from "@/types";
-
 
 export function usePost(postId: string | null) {
   const [post, setPost] = useState<Post | null>(null);
@@ -13,34 +11,37 @@ export function usePost(postId: string | null) {
 
   useEffect(() => {
     if (!postId) {
+      setPost(null);
       setLoading(false);
       return;
     }
 
-    const ref = doc(db, "posts", postId);
-
-    const unsubscribe = onSnapshot(
-      ref,
-      snap => {
-        if (!snap.exists()) {
-          setPost(null);
-          setError("Post not found");
-        } else {
-          setPost({
-            id: snap.id,
-            ...(snap.data() as Omit<Post, "id">),
-          });
-          setError(null);
+    const fetchPost = async (isInitial = false) => {
+      try {
+        if (isInitial) {
+          setLoading(true);
         }
-        setLoading(false);
-      },
-      err => {
-        setError(err.message);
-        setLoading(false);
+        const data = await api.getPost(postId);
+        setPost(data);
+        setError(null);
+      } catch (err: any) {
+        console.error("Error fetching post:", err);
+        setError(err.message || "Failed to fetch post");
+        setPost(null);
+      } finally {
+        if (isInitial) {
+          setLoading(false);
+        }
       }
-    );
+    };
 
-    return () => unsubscribe();
+    // Перше завантаження з loading
+    fetchPost(true);
+
+    // Оновлення кожні 5 секунд БЕЗ loading (для лайків і коментарів)
+    const interval = setInterval(() => fetchPost(false), 5000);
+
+    return () => clearInterval(interval);
   }, [postId]);
 
   return { post, loading, error };

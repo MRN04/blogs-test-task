@@ -1,48 +1,53 @@
 "use client";
 
-import { db } from "@/lib/firebase";
 import { formatDateTime } from "@/lib/utils";
 import { useBlogStore } from "@/store/useBlogStore";
-import { doc, updateDoc } from "firebase/firestore";
 import { Loader2, X } from "lucide-react";
-import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogClose, DialogTitle } from "@/components/ui/dialog";
 import { Drawer, DrawerContent, DrawerTitle, DrawerFooter } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { usePost } from "@/hooks/usePost";
 import { useIsMobile } from "@/hooks/useMediaQuery";
+import { useAuth } from "@/hooks/useAuth";
 import PostActions from "./PostActions";
 import PostTags from "./PostTags";
 import CommentsSection from "./CommentsSection";
+import { api } from "@/lib/api";
 
 export default function PostDetail() {
   const { clearSelectedPostId, selectedPostId } = useBlogStore();
-  const [isLiked, setIsLiked] = useState(false);
-  const [likedPostIds, setLikedPostIds] = useState<string[]>([]);
   const isMobile = useIsMobile();
   const { post, loading } = usePost(selectedPostId);
-
-  useEffect(() => {
-    const stored = JSON.parse(localStorage.getItem("likedPostIds") || "[]");
-    setLikedPostIds(stored);
-    setIsLiked(stored.includes(selectedPostId as string));
-  }, [selectedPostId]);
+  const { user } = useAuth();
 
   const handleLikeClick = async () => {
     if (!selectedPostId || !post) return;
 
-    const newLikes = isLiked ? (post.likes || 1) - 1 : (post.likes || 0) + 1;
-    await updateDoc(doc(db, "posts", selectedPostId), { likes: newLikes });
-
-    const updatedIds = isLiked
-      ? likedPostIds.filter((id) => id !== selectedPostId)
-      : [...likedPostIds, selectedPostId];
-
-    setLikedPostIds(updatedIds);
-    setIsLiked(!isLiked);
-    localStorage.setItem("likedPostIds", JSON.stringify(updatedIds));
+    try {
+      await api.toggleLike(selectedPostId);
+      // Post will be re-fetched by the hook
+    } catch (error) {
+      console.error('Error toggling like:', error);
+    }
   };
+
+  const handleDelete = async () => {
+    if (!selectedPostId) return;
+
+    try {
+      await api.deletePost(selectedPostId);
+      clearSelectedPostId();
+      // Показуємо повідомлення про успіх
+      alert('Пост успішно видалено!');
+      window.location.reload();
+    } catch (error: any) {
+      console.error('Error deleting post:', error);
+      alert(error.message || 'Помилка при видаленні поста');
+    }
+  };
+
+  const isAuthor = user && post && user.id === post.authorId;
 
   const handleOpenChange = (open: boolean) => {
     if (!open) clearSelectedPostId();
@@ -86,11 +91,11 @@ export default function PostDetail() {
                   <div className="flex items-center gap-3 mb-4">
                     <Avatar className="w-12 h-12 rounded-xl">
                       <AvatarFallback className="rounded-xl bg-linear-to-br from-secondary to-accent text-white text-lg font-bold">
-                        {post.author.charAt(0).toUpperCase()}
+                        {post.author.name.charAt(0).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     <div>
-                      <h3 className="font-semibold">{post.author}</h3>
+                      <h3 className="font-semibold">{post.author.name}</h3>
                       <p className="text-sm text-muted-foreground">
                         {formatDateTime(post.createdAt)}
                       </p>
@@ -103,10 +108,12 @@ export default function PostDetail() {
                 <div className="px-4 pb-4 overflow-y-auto flex-1">{postContent}</div>
                 <DrawerFooter className="border-t border-border flex-row justify-between">
                   <PostActions
-                    likes={post.likes || 0}
-                    isLiked={isLiked}
+                    likes={post._count.likes || 0}
+                    isLiked={post.isLiked || false}
                     onLikeClick={handleLikeClick}
                     onClose={clearSelectedPostId}
+                    isAuthor={isAuthor || false}
+                    onDelete={handleDelete || undefined}
                   />
                 </DrawerFooter>
               </>
@@ -135,11 +142,11 @@ export default function PostDetail() {
                 <div className="flex items-center gap-3">
                   <Avatar className="w-10 h-10">
                     <AvatarFallback className="bg-linear-to-br from-primary to-accent text-white font-semibold">
-                      {post.author.charAt(0).toUpperCase()}
+                      {post.author.name.charAt(0).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex flex-col">
-                    <span className="font-medium text-sm">{post.author}</span>
+                    <span className="font-medium text-sm">{post.author.name}</span>
                     <span className="text-xs text-muted-foreground">
                       {formatDateTime(post.createdAt)}
                     </span>
@@ -153,10 +160,12 @@ export default function PostDetail() {
               <div className="px-8 py-4 border-t border-border bg-muted/30">
                 <div className="flex items-center justify-between">
                   <PostActions
-                    likes={post.likes || 0}
-                    isLiked={isLiked}
+                    likes={post._count.likes || 0}
+                    isLiked={post.isLiked || false}
                     onLikeClick={handleLikeClick}
                     onClose={clearSelectedPostId}
+                    isAuthor={isAuthor || false}
+                    onDelete={handleDelete || undefined}
                   />
                 </div>
               </div>
